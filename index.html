@@ -1,0 +1,995 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Mansion Hunt</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=Cormorant+Garamond:ital@0;1&display=swap');
+  * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html, body { width:100%; height:100%; overflow:hidden; background:#0E0A07; font-family:-apple-system,system-ui,sans-serif; }
+  #app { position:relative; width:100vw; height:100vh; }
+  canvas { display:block; width:100%; height:100%; touch-action:none; }
+
+  /* ---------- Lobby ---------- */
+  #lobby {
+    position:absolute; inset:0; z-index:30;
+    background: radial-gradient(circle at 50% 30%, #2A2118 0%, #0E0A07 70%);
+    display:flex; align-items:center; justify-content:center;
+    padding:24px;
+  }
+  .card {
+    width:100%; max-width:380px;
+    background: linear-gradient(180deg, rgba(61,45,32,0.9), rgba(30,22,16,0.9));
+    border: 1px solid rgba(201,162,75,0.35);
+    border-radius: 4px;
+    padding: 32px 28px;
+    box-shadow: 0 30px 60px rgba(0,0,0,0.5);
+    text-align:center;
+  }
+  .card h1 {
+    font-family:'Playfair Display', serif;
+    color:#EDE3D0;
+    font-size: 28px;
+    letter-spacing: 0.01em;
+    margin-bottom: 4px;
+  }
+  .card .tagline {
+    font-family:'Cormorant Garamond', serif;
+    font-style: italic;
+    color: rgba(237,227,208,0.55);
+    font-size: 14px;
+    margin-bottom: 26px;
+  }
+  .field {
+    margin-bottom: 14px;
+    text-align:left;
+  }
+  .field label {
+    display:block;
+    font-size: 10px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: rgba(237,227,208,0.45);
+    margin-bottom: 6px;
+  }
+  .field input {
+    width:100%;
+    background: rgba(0,0,0,0.25);
+    border: 1px solid rgba(201,162,75,0.3);
+    border-radius: 2px;
+    padding: 11px 12px;
+    color: #EDE3D0;
+    font-size: 15px;
+    font-family: inherit;
+    letter-spacing: 0.02em;
+  }
+  .field input:focus { outline:none; border-color:#C9A24B; }
+  .field input::placeholder { color: rgba(237,227,208,0.25); }
+  .field input#joinCode { text-transform: uppercase; letter-spacing: 0.18em; text-align:center; font-weight:600; }
+
+  .btn {
+    width:100%;
+    border:none; border-radius:2px;
+    padding: 13px;
+    font-family: -apple-system, system-ui, sans-serif;
+    font-weight:600;
+    font-size: 14px;
+    letter-spacing: 0.04em;
+    cursor:pointer;
+    margin-top: 6px;
+  }
+  .btn-primary {
+    background: linear-gradient(135deg, #D8B560, #C9A24B);
+    color: #1A1208;
+  }
+  .btn-primary:active { transform: scale(0.98); }
+  .divider {
+    display:flex; align-items:center; gap:10px;
+    margin: 22px 0;
+    color: rgba(237,227,208,0.3);
+    font-size: 11px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+  }
+  .divider::before, .divider::after {
+    content:''; flex:1; height:1px; background: rgba(201,162,75,0.2);
+  }
+  .btn-secondary {
+    background: transparent;
+    border: 1px solid rgba(201,162,75,0.4);
+    color: #EDE3D0;
+  }
+  .lobby-error {
+    color: #D98C7A;
+    font-size: 12.5px;
+    margin-top: 12px;
+    min-height: 16px;
+    line-height: 1.5;
+    text-align: left;
+  }
+  .lobby-error code {
+    background: rgba(0,0,0,0.3);
+    padding: 1px 5px;
+    border-radius: 2px;
+    color: #EDE3D0;
+    font-size: 11.5px;
+  }
+  .server-note {
+    margin-top: 22px;
+    font-size: 11px;
+    line-height:1.5;
+    color: rgba(237,227,208,0.35);
+  }
+
+  /* ---------- HUD ---------- */
+  .hud {
+    position:absolute; inset:0; z-index:10; pointer-events:none;
+  }
+  .plaque {
+    position:absolute; top: max(16px, env(safe-area-inset-top)); left:16px;
+    background: linear-gradient(180deg, #C9A24B, #9C7B33);
+    color:#241A0C;
+    padding: 10px 16px;
+    border-radius: 2px;
+    box-shadow: 0 4px 14px rgba(0,0,0,0.4);
+    font-family:'Playfair Display', serif;
+  }
+  .plaque .n { font-size:22px; font-weight:700; line-height:1; }
+  .plaque .l { font-size:9px; letter-spacing:0.12em; text-transform:uppercase; opacity:0.75; margin-top:2px; }
+
+  .level-banner {
+    position:absolute; top: max(16px, env(safe-area-inset-top)); left:50%; transform:translateX(-50%);
+    color:#EDE3D0; text-align:center;
+    font-family:'Playfair Display', serif;
+  }
+  .level-banner .lv { font-size:11px; letter-spacing:0.16em; text-transform:uppercase; opacity:0.6; }
+  .level-banner .room { font-size:18px; margin-top:2px; }
+
+  .scoreboard {
+    position:absolute; top: max(16px, env(safe-area-inset-top)); right:16px;
+    background: rgba(20,15,10,0.7);
+    border: 1px solid rgba(201,162,75,0.3);
+    border-radius: 3px;
+    padding: 8px 12px;
+    min-width: 130px;
+    font-size: 12px;
+  }
+  .scoreboard .row { display:flex; justify-content:space-between; gap:10px; color:#EDE3D0; padding: 3px 0; }
+  .scoreboard .row .dot { width:8px; height:8px; border-radius:50%; display:inline-block; margin-right:6px; flex-shrink:0; }
+  .scoreboard .roomcode { font-size:9px; letter-spacing:0.1em; color: rgba(237,227,208,0.4); text-align:right; margin-bottom:6px; text-transform:uppercase; }
+
+  .crosshair {
+    position:absolute; top:50%; left:50%; transform:translate(-50%,-50%);
+    width:6px; height:6px; border-radius:50%;
+    background: rgba(237,227,208,0.8);
+    box-shadow: 0 0 4px rgba(0,0,0,0.6);
+  }
+  .prompt {
+    position:absolute; bottom: 130px; left:50%; transform:translateX(-50%);
+    color:#EDE3D0; font-size:13px; background: rgba(20,15,10,0.75);
+    padding: 7px 14px; border-radius:3px; border:1px solid rgba(201,162,75,0.4);
+    opacity:0; transition: opacity 0.15s ease;
+    font-family: 'Cormorant Garamond', serif; font-style: italic;
+  }
+  .prompt.show { opacity:1; }
+
+  .toast {
+    position:absolute; bottom: 90px; left:50%; transform:translateX(-50%);
+    color:#EDE3D0; font-family:'Playfair Display', serif; font-size:15px;
+    background: rgba(30,22,16,0.85); border:1px solid rgba(201,162,75,0.4);
+    padding:10px 20px; border-radius:3px; opacity:0; transition: opacity 0.3s ease, transform 0.3s ease;
+  }
+  .toast.show { opacity:1; transform: translateX(-50%) translateY(-6px); }
+
+  .levelup-flash {
+    position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
+    background: rgba(14,10,7,0); pointer-events:none; transition: background 0.4s ease;
+  }
+  .levelup-flash.show { background: rgba(14,10,7,0.55); }
+  .levelup-flash .txt {
+    font-family:'Playfair Display', serif; color:#D8B560; font-size:38px; text-align:center;
+    opacity:0; transform: scale(0.9); transition: opacity 0.4s ease, transform 0.4s ease;
+  }
+  .levelup-flash.show .txt { opacity:1; transform: scale(1); }
+  .levelup-flash .sub { font-family:'Cormorant Garamond',serif; font-style:italic; font-size:15px; color:#EDE3D0; margin-top:6px; }
+
+  /* mobile touch controls */
+  .touch-zone { position:absolute; bottom:0; width:46%; height:42%; z-index:9; }
+  .touch-zone.left { left:0; }
+  .touch-zone.right { right:0; }
+  .joystick-base {
+    position:absolute; bottom: max(28px, env(safe-area-inset-bottom)); left:28px;
+    width:96px; height:96px; border-radius:50%;
+    border: 1.5px solid rgba(237,227,208,0.3);
+    background: rgba(20,15,10,0.35);
+    z-index:11; pointer-events:none;
+  }
+  .joystick-nub {
+    position:absolute; width:42px; height:42px; border-radius:50%;
+    background: rgba(201,162,75,0.55);
+    top:50%; left:50%; transform: translate(-50%,-50%);
+  }
+
+  .desktop-hint {
+    position:absolute; bottom: max(16px, env(safe-area-inset-bottom)); left:50%; transform:translateX(-50%);
+    color: rgba(237,227,208,0.4); font-size:11px; letter-spacing:0.05em; z-index:10;
+    pointer-events:none;
+  }
+
+  @media (hover: hover) and (pointer: fine) {
+    .touch-zone, .joystick-base { display:none; }
+  }
+
+  /* ---------- Rotate-device overlay (mobile portrait) ---------- */
+  #rotateOverlay {
+    position: fixed; inset: 0; z-index: 999;
+    background: #0E0A07;
+    display: none;
+    align-items: center; justify-content: center;
+    flex-direction: column;
+    text-align: center;
+    padding: 32px;
+  }
+  #rotateOverlay .icon {
+    font-size: 48px;
+    margin-bottom: 18px;
+    animation: rotateHint 1.8s ease-in-out infinite;
+  }
+  @keyframes rotateHint {
+    0%, 100% { transform: rotate(0deg); }
+    50% { transform: rotate(-90deg); }
+  }
+  #rotateOverlay h2 {
+    font-family:'Playfair Display', serif;
+    color:#EDE3D0;
+    font-size: 20px;
+    margin-bottom: 8px;
+  }
+  #rotateOverlay p {
+    color: rgba(237,227,208,0.55);
+    font-size: 13px;
+    max-width: 260px;
+    line-height: 1.5;
+  }
+  @media (orientation: portrait) and (max-width: 900px) {
+    #rotateOverlay { display: flex; }
+  }
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="rotateOverlay">
+    <div class="icon">📱</div>
+    <h2>Turn your phone sideways</h2>
+    <p>The mansion is built for a wide view. Rotate to landscape to walk in.</p>
+  </div>
+
+  <canvas id="c"></canvas>
+
+  <div id="lobby">
+    <div class="card">
+      <h1>Mansion Hunt</h1>
+      <div class="tagline">A house of ten rooms. Someone hid things in all of them.</div>
+
+      <div class="field">
+        <label for="nameInput">Your name</label>
+        <input id="nameInput" type="text" placeholder="What do we call you?" maxlength="20">
+      </div>
+
+      <button class="btn btn-primary" id="createBtn">Start a new hunt</button>
+
+      <div class="divider">or join one</div>
+
+      <div class="field">
+        <label for="joinCode">Hunt code</label>
+        <input id="joinCode" type="text" placeholder="XXXXX" maxlength="5">
+      </div>
+      <button class="btn btn-secondary" id="joinBtn">Join hunt</button>
+
+      <div class="lobby-error" id="lobbyError"></div>
+      <div class="server-note">Connecting to: <span id="serverUrlLabel"></span></div>
+    </div>
+  </div>
+
+  <div class="hud" id="hud" style="display:none;">
+    <div class="plaque"><div class="n" id="foundCount">0</div><div class="l">Found</div></div>
+    <div class="level-banner"><div class="lv" id="levelLabel">Level 1</div><div class="room" id="roomLabel">Entrance Hall</div></div>
+    <div class="scoreboard">
+      <div class="roomcode">Code: <span id="codeLabel">—</span></div>
+      <div id="scoreRows"></div>
+    </div>
+    <div class="crosshair"></div>
+    <div class="prompt" id="prompt">tap to collect</div>
+    <div class="toast" id="toast"></div>
+    <div class="desktop-hint">WASD to move · drag to look · click glowing object to collect</div>
+  </div>
+
+  <div class="levelup-flash" id="levelupFlash">
+    <div style="text-align:center;">
+      <div class="txt" id="levelupText">Level 2</div>
+      <div class="sub">Ten new things have gone missing.</div>
+    </div>
+  </div>
+
+  <div class="touch-zone left" id="moveZone"></div>
+  <div class="touch-zone right" id="lookZone"></div>
+  <div class="joystick-base" id="joyBase" style="display:none;"><div class="joystick-nub" id="joyNub"></div></div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+<script>
+(function(){
+
+  // =====================================================================
+  // LOAD CHECK — if this page was opened by double-tapping the file
+  // (file:// instead of http://), many mobile browsers silently block the
+  // external <script> tags above, so THREE/io never load. Catch that here
+  // with a clear message instead of letting the game crash with a console
+  // error nobody but a developer would ever see.
+  // =====================================================================
+  if (typeof THREE === 'undefined' || typeof io === 'undefined'){
+    document.getElementById('app').innerHTML = `
+      <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+        background:#0E0A07;padding:32px;text-align:center;">
+        <div style="max-width:340px;">
+          <div style="font-family:'Playfair Display',serif;color:#EDE3D0;font-size:20px;margin-bottom:12px;">
+            Can't load the game from here
+          </div>
+          <div style="color:rgba(237,227,208,0.7);font-size:14px;line-height:1.6;">
+            This file was opened directly (as a local file), and this browser is blocking
+            the outside libraries the game needs (3D graphics + multiplayer).<br><br>
+            This happens on some mobile browsers when a page isn't served over
+            <code style="background:rgba(0,0,0,0.3);padding:1px 5px;border-radius:2px;">http://</code>.<br><br>
+            <b>Fix:</b> run the included server (<code style="background:rgba(0,0,0,0.3);padding:1px 5px;border-radius:2px;">npm start</code>)
+            and open <code style="background:rgba(0,0,0,0.3);padding:1px 5px;border-radius:2px;">http://localhost:3000</code> instead —
+            or deploy it online and open the live URL.
+          </div>
+        </div>
+      </div>`;
+    return;
+  }
+
+  // =====================================================================
+  // CONFIG — point this at your deployed server URL once you deploy it.
+  // While testing locally it'll default to same-origin.
+  // =====================================================================
+  const SERVER_URL = window.MANSION_HUNT_SERVER_URL || window.location.origin;
+  document.getElementById('serverUrlLabel').textContent = SERVER_URL;
+
+  let socket = null;
+  let myId = null;
+  let myName = 'Guest';
+  let roomCode = null;
+  let myScore = 0;
+  let foundCount = 0;
+  let currentLevel = 1;
+
+  // remote players: id -> { mesh, label, targetPos, targetRot, name, color, score }
+  const remotePlayers = new Map();
+  // active objects in scene: id -> { mesh, data }
+  const activeObjects = new Map();
+
+  // ---------------------------------------------------------------------
+  // THREE.JS SETUP
+  // ---------------------------------------------------------------------
+  const canvas = document.getElementById('c');
+  const renderer = new THREE.WebGLRenderer({ canvas, antialias:true });
+  renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+  renderer.shadowMap.enabled = true;
+
+  const scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x14100B);
+  scene.fog = new THREE.Fog(0x14100B, 18, 55);
+
+  const camera = new THREE.PerspectiveCamera(70, innerWidth/innerHeight, 0.1, 200);
+  const playerRig = new THREE.Object3D(); // yaw
+  const pitchObj = new THREE.Object3D();  // pitch
+  playerRig.add(pitchObj);
+  pitchObj.add(camera);
+  camera.position.set(0,0,0);
+  playerRig.position.set(0, 1.7, 6);
+  scene.add(playerRig);
+
+  function resize(){
+    renderer.setSize(innerWidth, innerHeight);
+    camera.aspect = innerWidth/innerHeight;
+    camera.updateProjectionMatrix();
+  }
+  window.addEventListener('resize', resize);
+  resize();
+
+  // ---------------------------------------------------------------------
+  // LIGHTING
+  // ---------------------------------------------------------------------
+  const hemi = new THREE.HemisphereLight(0x8899aa, 0x3a2a1a, 0.55);
+  scene.add(hemi);
+  const moon = new THREE.DirectionalLight(0x7b8fa3, 0.4);
+  moon.position.set(-20, 30, -10);
+  scene.add(moon);
+
+  function addWarmLamp(x,y,z, intensity=0.9, dist=12){
+    const l = new THREE.PointLight(0xffb87a, intensity, dist, 2);
+    l.position.set(x,y,z);
+    scene.add(l);
+    const bulb = new THREE.Mesh(new THREE.SphereGeometry(0.12,8,8), new THREE.MeshBasicMaterial({color:0xffe2b0}));
+    bulb.position.set(x,y,z);
+    scene.add(bulb);
+  }
+
+  // ---------------------------------------------------------------------
+  // MATERIALS
+  // ---------------------------------------------------------------------
+  const matFloorWood = new THREE.MeshStandardMaterial({ color:0x4a3320, roughness:0.85, metalness:0.05 });
+  const matFloorTile = new THREE.MeshStandardMaterial({ color:0x6b5640, roughness:0.7 });
+  const matWall = new THREE.MeshStandardMaterial({ color:0x3a2a1f, roughness:0.9 });
+  const matWallLight = new THREE.MeshStandardMaterial({ color:0x55402c, roughness:0.85 });
+  const matTrim = new THREE.MeshStandardMaterial({ color:0xC9A24B, roughness:0.4, metalness:0.5 });
+  const matWindowGlass = new THREE.MeshStandardMaterial({ color:0x7b8fa3, roughness:0.1, metalness:0.1, transparent:true, opacity:0.35, emissive:0x33415a, emissiveIntensity:0.4 });
+  const matRug = new THREE.MeshStandardMaterial({ color:0x6e2b2b, roughness:0.95 });
+  const matWood = new THREE.MeshStandardMaterial({ color:0x5a3d24, roughness:0.7 });
+
+  // ---------------------------------------------------------------------
+  // MANSION GEOMETRY
+  // Rooms are simple boxes (walls as thin planes) laid out around an
+  // entrance hall. Coordinates match server's HIDING_SPOTS so object
+  // positions make sense relative to the room they're labeled with.
+  // ---------------------------------------------------------------------
+  const WALL_H = 5;
+  const colliders = []; // {minX,maxX,minZ,maxZ} for simple wall collision (AABB per wall segment)
+
+  function box(w,h,d, mat, x,y,z, ry=0){
+    const m = new THREE.Mesh(new THREE.BoxGeometry(w,h,d), mat);
+    m.position.set(x,y,z);
+    m.rotation.y = ry;
+    m.castShadow = true; m.receiveShadow = true;
+    scene.add(m);
+    return m;
+  }
+
+  function floor(w,d,mat,x,y,z){
+    const m = new THREE.Mesh(new THREE.PlaneGeometry(w,d), mat);
+    m.rotation.x = -Math.PI/2;
+    m.position.set(x,y,z);
+    m.receiveShadow = true;
+    scene.add(m);
+    return m;
+  }
+
+  function wallSeg(length, x, z, ry, mat, height=WALL_H, y=WALL_H/2){
+    const thickness = 0.3;
+    box(length, height, thickness, mat, x, y, z, ry);
+    // collider as AABB regardless of rotation (approx by length along local x)
+    const hl = length/2;
+    const dx = Math.cos(ry)*hl, dz = -Math.sin(ry)*hl;
+    colliders.push({
+      x1: x-dx, z1: z-dz, x2: x+dx, z2: z+dz, thickness: thickness+0.5
+    });
+  }
+
+  function roomFloor(cx, cz, w, d, mat){
+    floor(w, d, mat, cx, 0, cz);
+  }
+
+  // Entrance Hall (center) — tall, grand
+  roomFloor(0, 0, 12, 12, matFloorTile);
+  box(12.3, 0.1, 12.3, matRug, 0,0.01,0);
+  wallSeg(12, 0, -6, 0, matWall, 8); // back wall (with door gap conceptually open)
+  wallSeg(12, -6, 0, Math.PI/2, matWallLight, 8);
+  wallSeg(12, 6, 0, Math.PI/2, matWallLight, 8);
+  wallSeg(12, 0, 6, 0, matWall, 8);
+  addWarmLamp(0, 4, 0, 1.0, 16);
+
+  // Helper to build a generic rectangular room connected via open doorway
+  function buildRoom(cx, cz, w, d, floorMat, lampColor=true){
+    roomFloor(cx, cz, w, d, floorMat);
+    const hw = w/2, hd = d/2;
+    wallSeg(w, cx, cz-hd, 0, matWall);
+    wallSeg(w, cx, cz+hd, 0, matWall);
+    wallSeg(d, cx-hw, cz, Math.PI/2, matWallLight);
+    wallSeg(d, cx+hw, cz, Math.PI/2, matWallLight);
+    if (lampColor) addWarmLamp(cx, 4, cz, 0.7, 13);
+  }
+
+  // Library (NE-ish)
+  buildRoom(11, -11, 9, 9, matFloorWood);
+  // Dining Room (NW-ish)
+  buildRoom(-11, -11, 9, 9, matFloorWood);
+  // Kitchen (far W)
+  buildRoom(-17, 0, 7, 9, matFloorTile);
+  // Ballroom (S, large)
+  buildRoom(0, 18, 14, 10, matFloorTile);
+  // Music Room (E)
+  buildRoom(17, 6, 8, 8, matFloorWood);
+  // Study (SE)
+  buildRoom(11, 11, 8, 8, matFloorWood);
+  // Conservatory (SW)
+  buildRoom(-11, 11, 8, 8, matFloorTile);
+  // Wine Cellar (below, darker, no big windows) — at negative y in data, but
+  // for simplicity we keep it visually at floor level offset for now.
+  buildRoom(-16, -14, 8, 7, matFloorTile, false);
+  addWarmLamp(-16, 3.2, -14, 0.5, 10);
+  // Attic (raised platform)
+  const atticY = 6.2;
+  const atticFloor = new THREE.Mesh(new THREE.PlaneGeometry(9,7), matFloorWood);
+  atticFloor.rotation.x = -Math.PI/2;
+  atticFloor.position.set(0, atticY, -14);
+  atticFloor.receiveShadow = true;
+  scene.add(atticFloor);
+  addWarmLamp(0, atticY+3, -14, 0.5, 9);
+  // simple ramp/stairs up to attic (visual only, walk-through since no full physics)
+  const ramp = box(3, 0.4, 9, matWood, 0, atticY/2, -8, 0);
+  ramp.rotation.x = -Math.atan2(atticY, 9);
+
+  // Decorative trim strips at room thresholds (purely visual flavor)
+  [[5.5,-6],[ -5.5,-6],[8.5,0],[ -8.5,0]].forEach(([x,z])=>{
+    box(0.3, 0.15, 0.3, matTrim, x, 0.08, z);
+  });
+
+  // Windows (visual only)
+  function window_(x,y,z,ry){
+    box(1.6, 2.2, 0.1, matWindowGlass, x,y,z,ry);
+  }
+  window_(11, 2.5, -15.4, 0);
+  window_(-11, 2.5, -15.4, 0);
+  window_(17, 2.5, 1.5, Math.PI/2);
+  window_(0, 2.5, 22.9, 0);
+
+  // ---------------------------------------------------------------------
+  // ROOM LABEL ZONES (for HUD "you are here" label + level-up tracking)
+  // ---------------------------------------------------------------------
+  const ROOM_ZONES = [
+    { name:'Entrance Hall', minX:-6, maxX:6, minZ:-6, maxZ:6 },
+    { name:'Library', minX:6.5, maxX:15.5, minZ:-15.5, maxZ:-6.5 },
+    { name:'Dining Room', minX:-15.5, maxX:-6.5, minZ:-15.5, maxZ:-6.5 },
+    { name:'Kitchen', minX:-20.5, maxX:-13.5, minZ:-4.5, maxZ:4.5 },
+    { name:'Ballroom', minX:-7, maxX:7, minZ:13, maxZ:23 },
+    { name:'Music Room', minX:13, maxX:21, minZ:2, maxZ:10 },
+    { name:'Study', minX:7, maxX:15, minZ:7, maxZ:15 },
+    { name:'Conservatory', minX:-15, maxX:-7, minZ:7, maxZ:15 },
+    { name:'Wine Cellar', minX:-20, maxX:-12, minZ:-17.5, maxZ:-10.5 },
+    { name:'Attic', minX:-4.5, maxX:4.5, minZ:-17.5, maxZ:-10.5 }
+  ];
+  function currentRoomName(pos){
+    for (const z of ROOM_ZONES){
+      if (pos.x>=z.minX && pos.x<=z.maxX && pos.z>=z.minZ && pos.z<=z.maxZ) return z.name;
+    }
+    return 'The Hallway';
+  }
+
+  // ---------------------------------------------------------------------
+  // OBJECT (collectible) RENDERING
+  // The server sends positions as [x,y,z] matching HIDING_SPOTS; the y in
+  // server data for Wine Cellar is negative (below floor) and Attic is
+  // raised — we honor those directly since the client geometry's Y=0 floor
+  // plane is shared; cellar items will appear slightly sunken which reads
+  // fine as "in a low cellar nook," attic items sit near atticY.
+  // ---------------------------------------------------------------------
+  function makeObjectMesh(name){
+    const group = new THREE.Group();
+    const glow = new THREE.PointLight(0xffd23f, 1.1, 4);
+    group.add(glow);
+    const core = new THREE.Mesh(
+      new THREE.OctahedronGeometry(0.28, 0),
+      new THREE.MeshStandardMaterial({ color:0xC9A24B, emissive:0xFFD23F, emissiveIntensity:0.6, metalness:0.7, roughness:0.25 })
+    );
+    core.castShadow = true;
+    group.add(core);
+    group.userData.spin = Math.random()*Math.PI*2;
+    return group;
+  }
+
+  function addObjectToScene(obj){
+    if (activeObjects.has(obj.id) || obj.found) return;
+    const mesh = makeObjectMesh(obj.name);
+    mesh.position.set(obj.pos[0], obj.pos[1], obj.pos[2]);
+    scene.add(mesh);
+    activeObjects.set(obj.id, { mesh, data: obj });
+  }
+  function removeObjectFromScene(id){
+    const entry = activeObjects.get(id);
+    if (!entry) return;
+    scene.remove(entry.mesh);
+    activeObjects.delete(id);
+  }
+  function setAllObjects(list){
+    for (const id of Array.from(activeObjects.keys())) removeObjectFromScene(id);
+    list.forEach(o => { if (!o.found) addObjectToScene(o); });
+  }
+
+  // ---------------------------------------------------------------------
+  // REMOTE PLAYER AVATARS
+  // ---------------------------------------------------------------------
+  function makeAvatar(color, name){
+    const group = new THREE.Group();
+    const body = new THREE.Mesh(
+      new THREE.CapsuleGeometry(0.32, 0.9, 4, 8),
+      new THREE.MeshStandardMaterial({ color: new THREE.Color(color), roughness:0.6 })
+    );
+    body.position.y = 0.85;
+    body.castShadow = true;
+    group.add(body);
+    const head = new THREE.Mesh(new THREE.SphereGeometry(0.22,12,12), new THREE.MeshStandardMaterial({color:0xEDD9B8}));
+    head.position.y = 1.55;
+    group.add(head);
+
+    // floating brass display case above head — grows with score
+    const caseGroup = new THREE.Group();
+    caseGroup.position.y = 2.05;
+    group.add(caseGroup);
+
+    return { group, caseGroup, itemMeshes: [] };
+  }
+
+  function updateAvatarCase(entry, score){
+    while (entry.itemMeshes.length > score){
+      const m = entry.itemMeshes.pop();
+      entry.caseGroup.remove(m);
+    }
+    while (entry.itemMeshes.length < score){
+      const i = entry.itemMeshes.length;
+      const m = new THREE.Mesh(
+        new THREE.OctahedronGeometry(0.1,0),
+        new THREE.MeshStandardMaterial({color:0xC9A24B, emissive:0xFFD23F, emissiveIntensity:0.5, metalness:0.7})
+      );
+      entry.itemMeshes.push(m);
+      entry.caseGroup.add(m);
+    }
+    entry.itemMeshes.forEach((m, i)=>{
+      const angle = (i / Math.max(entry.itemMeshes.length,1)) * Math.PI*2 + performance.now()/1500;
+      const r = 0.35 + Math.min(entry.itemMeshes.length,20)*0.012;
+      m.position.set(Math.cos(angle)*r, Math.sin(performance.now()/900 + i)*0.06, Math.sin(angle)*r);
+    });
+  }
+
+  // ---------------------------------------------------------------------
+  // MOVEMENT / INPUT
+  // ---------------------------------------------------------------------
+  let yaw = Math.PI; // facing into the hall initially
+  let pitch = 0;
+  const keys = {};
+  window.addEventListener('keydown', e=>keys[e.key.toLowerCase()]=true);
+  window.addEventListener('keyup', e=>keys[e.key.toLowerCase()]=false);
+
+  let lookDragId = null, lookLastX=0, lookLastY=0;
+  let moveVec = {x:0,y:0}; // from joystick, -1..1
+  let joyActive = false, joyId = null, joyStartX=0, joyStartY=0;
+
+  const moveZone = document.getElementById('moveZone');
+  const lookZone = document.getElementById('lookZone');
+  const joyBase = document.getElementById('joyBase');
+  const joyNub = document.getElementById('joyNub');
+
+  function isTouchDevice(){ return !(window.matchMedia('(hover:hover) and (pointer:fine)').matches); }
+  if (isTouchDevice()) joyBase.style.display = 'block';
+
+  moveZone.addEventListener('pointerdown', e=>{
+    joyActive = true; joyId = e.pointerId;
+    joyStartX = e.clientX; joyStartY = e.clientY;
+    joyBase.style.left = (e.clientX-48)+'px';
+    joyBase.style.bottom = 'auto';
+    joyBase.style.top = (e.clientY-48)+'px';
+  });
+  window.addEventListener('pointermove', e=>{
+    if (joyActive && e.pointerId === joyId){
+      let dx = e.clientX - joyStartX, dy = e.clientY - joyStartY;
+      const max = 44;
+      const len = Math.hypot(dx,dy);
+      if (len > max){ dx = dx/len*max; dy = dy/len*max; }
+      joyNub.style.transform = `translate(${dx-21}px, ${dy-21}px)`;
+      moveVec.x = dx/max; moveVec.y = dy/max;
+    }
+    if (lookDragId !== null && e.pointerId === lookDragId){
+      const dx = e.clientX - lookLastX, dy = e.clientY - lookLastY;
+      yaw -= dx * 0.0032;
+      pitch -= dy * 0.0028;
+      pitch = Math.max(-1.2, Math.min(1.2, pitch));
+      lookLastX = e.clientX; lookLastY = e.clientY;
+    }
+  });
+  window.addEventListener('pointerup', e=>{
+    if (e.pointerId === joyId){ joyActive=false; moveVec={x:0,y:0}; joyNub.style.transform='translate(-50%,-50%)'; joyNub.style.left='50%'; joyNub.style.top='50%';}
+    if (e.pointerId === lookDragId){ lookDragId = null; }
+  });
+  lookZone.addEventListener('pointerdown', e=>{
+    lookDragId = e.pointerId; lookLastX = e.clientX; lookLastY = e.clientY;
+    tryRaycastCollect(e.clientX, e.clientY);
+  });
+
+  // Desktop: pointer lock style drag-to-look on the whole canvas, click to collect
+  let desktopDragging = false, desktopLastX=0, desktopLastY=0;
+  canvas.addEventListener('pointerdown', e=>{
+    if (isTouchDevice()) return;
+    desktopDragging = true; desktopLastX = e.clientX; desktopLastY = e.clientY;
+  });
+  window.addEventListener('pointerup', ()=>{ desktopDragging = false; });
+  window.addEventListener('pointermove', e=>{
+    if (desktopDragging){
+      const dx = e.clientX - desktopLastX, dy = e.clientY - desktopLastY;
+      yaw -= dx*0.0032;
+      pitch -= dy*0.0028;
+      pitch = Math.max(-1.2, Math.min(1.2, pitch));
+      desktopLastX = e.clientX; desktopLastY = e.clientY;
+    }
+  });
+  canvas.addEventListener('click', e=>{
+    if (!isTouchDevice()) tryRaycastCollect(e.clientX, e.clientY);
+  });
+
+  const raycaster = new THREE.Raycaster();
+  function tryRaycastCollect(clientX, clientY){
+    const nearestId = findNearestCollectible();
+    if (nearestId) collectObject(nearestId);
+  }
+
+  function findNearestCollectible(){
+    let best=null, bestD=2.4; // collection radius
+    for (const [id, entry] of activeObjects){
+      const d = playerRig.position.distanceTo(entry.mesh.position);
+      if (d < bestD){ bestD = d; best = id; }
+    }
+    return best;
+  }
+
+  function collectObject(id){
+    if (!socket || !roomCode) return;
+    socket.emit('collect_object', { objectId: id });
+  }
+
+  // ---------------------------------------------------------------------
+  // COLLISION (simple AABB-ish vs wall segments, generous radius)
+  // ---------------------------------------------------------------------
+  function resolveCollision(pos){
+    const r = 0.4;
+    for (const seg of colliders){
+      const minX = Math.min(seg.x1,seg.x2)-r, maxX = Math.max(seg.x1,seg.x2)+r;
+      const minZ = Math.min(seg.z1,seg.z2)-r, maxZ = Math.max(seg.z1,seg.z2)+r;
+      // only block if wall is thin in one axis (door gaps exist due to room layout, approximate)
+      const thin = (Math.abs(seg.x1-seg.x2) < 0.5) || (Math.abs(seg.z1-seg.z2) < 0.5);
+      if (!thin) continue;
+      if (pos.x>minX && pos.x<maxX && pos.z>minZ && pos.z<maxZ){
+        // push out along shortest axis
+        const dxMin = pos.x-minX, dxMax = maxX-pos.x, dzMin = pos.z-minZ, dzMax = maxZ-pos.z;
+        const m = Math.min(dxMin,dxMax,dzMin,dzMax);
+        if (m===dxMin) pos.x = minX;
+        else if (m===dxMax) pos.x = maxX;
+        else if (m===dzMin) pos.z = minZ;
+        else pos.z = maxZ;
+      }
+    }
+  }
+
+  // ---------------------------------------------------------------------
+  // MAIN LOOP
+  // ---------------------------------------------------------------------
+  let lastTime = 0;
+  const SPEED = 5.0;
+
+  function animate(now){
+    requestAnimationFrame(animate);
+    if (!lastTime) lastTime = now;
+    const dt = Math.min((now-lastTime)/1000, 0.05);
+    lastTime = now;
+
+    playerRig.rotation.y = yaw;
+    pitchObj.rotation.x = pitch;
+
+    // movement input: keyboard OR joystick
+    let mx = 0, mz = 0;
+    if (keys['w']||keys['arrowup']) mz -= 1;
+    if (keys['s']||keys['arrowdown']) mz += 1;
+    if (keys['a']||keys['arrowleft']) mx -= 1;
+    if (keys['d']||keys['arrowright']) mx += 1;
+    if (joyActive){ mx += moveVec.x; mz += moveVec.y; }
+
+    const len = Math.hypot(mx,mz);
+    if (len > 0.001){
+      mx/=len; mz/=len;
+      const sinY = Math.sin(yaw), cosY = Math.cos(yaw);
+      const worldX = mx*cosY + mz*sinY;
+      const worldZ = -mx*sinY + mz*cosY;
+      playerRig.position.x += worldX * SPEED * dt;
+      playerRig.position.z += worldZ * SPEED * dt;
+      resolveCollision(playerRig.position);
+    }
+
+    // attic/cellar vertical feel: simple Y based on zone (no real jumping needed)
+    const roomName = currentRoomName(playerRig.position);
+    if (roomName === 'Attic') playerRig.position.y = THREE.MathUtils.lerp(playerRig.position.y, atticY+1.7, 0.08);
+    else if (roomName === 'Wine Cellar') playerRig.position.y = THREE.MathUtils.lerp(playerRig.position.y, -1.5, 0.08);
+    else playerRig.position.y = THREE.MathUtils.lerp(playerRig.position.y, 1.7, 0.08);
+
+    document.getElementById('roomLabel').textContent = roomName;
+
+    // object spin/bob + collection prompt
+    let near = false;
+    for (const [id, entry] of activeObjects){
+      entry.mesh.rotation.y += dt*1.2;
+      entry.mesh.position.y = entry.data.pos[1] + Math.sin(now/500 + entry.mesh.userData.spin)*0.08;
+      if (playerRig.position.distanceTo(entry.mesh.position) < 2.4) near = true;
+    }
+    document.getElementById('prompt').classList.toggle('show', near);
+
+    // smooth remote players toward target
+    remotePlayers.forEach(entry=>{
+      entry.group.position.lerp(entry.targetPos, 0.18);
+      const cur = entry.group.rotation.y;
+      let diff = entry.targetRot - cur;
+      while (diff > Math.PI) diff -= Math.PI*2;
+      while (diff < -Math.PI) diff += Math.PI*2;
+      entry.group.rotation.y = cur + diff*0.18;
+      updateAvatarCase(entry, entry.score);
+    });
+
+    // send our position to server (throttled)
+    netSendTimer += dt;
+    if (netSendTimer > 0.08 && socket && roomCode){
+      netSendTimer = 0;
+      socket.emit('move', { pos:[playerRig.position.x,playerRig.position.y,playerRig.position.z], rot: yaw });
+    }
+
+    renderer.render(scene, camera);
+  }
+  let netSendTimer = 0;
+  requestAnimationFrame(animate);
+
+  // ---------------------------------------------------------------------
+  // UI HELPERS
+  // ---------------------------------------------------------------------
+  function showToast(msg){
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.classList.add('show');
+    clearTimeout(t._hideTimer);
+    t._hideTimer = setTimeout(()=>t.classList.remove('show'), 2200);
+  }
+
+  function renderScoreboard(scores){
+    const rows = document.getElementById('scoreRows');
+    rows.innerHTML = '';
+    scores.forEach(s=>{
+      const row = document.createElement('div');
+      row.className = 'row';
+      row.innerHTML = `<span><span class="dot" style="background:${s.color}"></span>${s.name}</span><span>${s.score}</span>`;
+      rows.appendChild(row);
+    });
+  }
+
+  function updateFoundCount(objects){
+    foundCount = objects.filter(o=>o.found).length;
+    document.getElementById('foundCount').textContent = foundCount;
+  }
+
+  // ---------------------------------------------------------------------
+  // SOCKET WIRING
+  // ---------------------------------------------------------------------
+  function connectAndStart(mode){
+    myName = document.getElementById('nameInput').value.trim() || 'Guest';
+    const code = document.getElementById('joinCode').value.trim().toUpperCase();
+    const errEl = document.getElementById('lobbyError');
+    errEl.textContent = '';
+
+    if (mode === 'join' && code.length !== 5){
+      errEl.textContent = 'Hunt codes are 5 characters.';
+      return;
+    }
+
+    // Opening this file directly (double-click / file://) means there is no
+    // server at all to connect to — catch that case with a clear message
+    // instead of a generic connection failure.
+    if (window.location.protocol === 'file:' && !window.MANSION_HUNT_SERVER_URL){
+      errEl.innerHTML = 'This page was opened as a local file, so there\'s no server to connect to yet.<br><br>Run the server (<code>npm start</code>) and open it from <code>http://localhost:3000</code> instead — or deploy it online and set <code>window.MANSION_HUNT_SERVER_URL</code> at the top of this file.';
+      return;
+    }
+
+    errEl.textContent = 'Connecting…';
+
+    if (!socket){
+      socket = io(SERVER_URL, { transports:['websocket','polling'], timeout: 6000 });
+
+      let connectTimer = setTimeout(()=>{
+        if (!socket.connected){
+          errEl.innerHTML = `Couldn't reach a server at <code>${SERVER_URL}</code> after 6 seconds.<br>Check that the server is running (<code>npm start</code>) and that this page's URL matches where it's hosted.`;
+        }
+      }, 6000);
+
+      socket.on('connect', ()=>{
+        clearTimeout(connectTimer);
+        errEl.textContent = '';
+      });
+
+      socket.on('connect_error', (err)=>{
+        clearTimeout(connectTimer);
+        errEl.innerHTML = `Could not reach the server at <code>${SERVER_URL}</code>.<br>Make sure it's deployed and running, then try again. <span style="opacity:0.6">(${(err && err.message) || 'connection failed'})</span>`;
+      });
+
+      socket.on('room_created', onRoomEntered);
+      socket.on('room_joined', onRoomEntered);
+      socket.on('join_error', d=>{ errEl.textContent = d.message; });
+
+      socket.on('player_joined', d=>{
+        addRemotePlayer(d.player);
+        showToast(`${d.player.name} entered the mansion.`);
+      });
+      socket.on('player_left', d=>{
+        const entry = remotePlayers.get(d.id);
+        if (entry){ scene.remove(entry.group); remotePlayers.delete(d.id); }
+      });
+      socket.on('player_moved', d=>{
+        const entry = remotePlayers.get(d.id);
+        if (entry){ entry.targetPos.set(d.pos[0],d.pos[1],d.pos[2]); entry.targetRot = d.rot; }
+      });
+      socket.on('object_found', d=>{
+        removeObjectFromScene(d.objectId);
+        if (d.foundBy === myId){
+          myScore++;
+          showToast(`You found it. (+1)`);
+        } else {
+          const entry = remotePlayers.get(d.foundBy);
+          if (entry) entry.score = (entry.score||0)+1;
+          showToast(`${d.foundByName} found something.`);
+        }
+        foundCount++;
+        document.getElementById('foundCount').textContent = foundCount;
+        renderScoreboard(d.scores);
+      });
+      socket.on('level_up', d=>{
+        currentLevel = d.level;
+        document.getElementById('levelLabel').textContent = `Level ${d.level}`;
+        setAllObjects(d.objects);
+        updateFoundCount(d.objects);
+        flashLevelUp(d.level);
+      });
+      socket.on('objects_reshuffled', d=>{
+        setAllObjects(d.objects);
+        updateFoundCount(d.objects);
+        showToast('The house has rearranged itself.');
+      });
+    }
+
+    if (mode === 'create') socket.emit('create_room', { name: myName });
+    else socket.emit('join_room', { name: myName, code });
+  }
+
+  function onRoomEntered(d){
+    myId = d.you;
+    roomCode = d.code;
+    currentLevel = d.level;
+    document.getElementById('lobby').style.display = 'none';
+    document.getElementById('hud').style.display = 'block';
+    document.getElementById('codeLabel').textContent = d.code;
+    document.getElementById('levelLabel').textContent = `Level ${d.level}`;
+    setAllObjects(d.objects);
+    updateFoundCount(d.objects);
+
+    d.players.forEach(p=>{ if (p.id !== myId) addRemotePlayer(p); });
+    renderScoreboard(d.players.map(p=>({name:p.name,score:p.score,color:p.color})));
+  }
+
+  function addRemotePlayer(p){
+    if (remotePlayers.has(p.id) || p.id === myId) return;
+    const a = makeAvatar(p.color, p.name);
+    a.group.position.set(p.pos[0],p.pos[1],p.pos[2]);
+    scene.add(a.group);
+    remotePlayers.set(p.id, {
+      group: a.group, caseGroup: a.caseGroup, itemMeshes: a.itemMeshes,
+      targetPos: new THREE.Vector3(p.pos[0],p.pos[1],p.pos[2]),
+      targetRot: p.rot, name: p.name, score: p.score||0
+    });
+  }
+
+  function flashLevelUp(level){
+    const el = document.getElementById('levelupFlash');
+    document.getElementById('levelupText').textContent = `Level ${level}`;
+    el.classList.add('show');
+    setTimeout(()=>el.classList.remove('show'), 1800);
+  }
+
+  document.getElementById('createBtn').addEventListener('click', ()=>connectAndStart('create'));
+  document.getElementById('joinBtn').addEventListener('click', ()=>connectAndStart('join'));
+
+})();
+</script>
+</body>
+</html>
